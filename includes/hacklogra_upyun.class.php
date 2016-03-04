@@ -3,6 +3,7 @@
  * @package Hacklog Remote Attachment Upyun
  * @encoding UTF-8
  * @author 荒野无灯 <HuangYeWuDeng>
+ * @contributor Hintay <hintay@me.com>
  * @link http://ihacklog.com
  * @copyright Copyright (C) 2012 荒野无灯
  * @license http://www.gnu.org/licenses/
@@ -45,6 +46,7 @@ class hacklogra_upyun
 	private static $local_path       = '';
 	private static $local_url        = '';
 	private static $local_baseurl    = '';
+	private static $local_baseurl_schemed   = '';
 	private static $fs               = null;
 
 	public function __construct()
@@ -60,6 +62,7 @@ class hacklogra_upyun
 		add_action('init', array(__CLASS__, 'admin_init'));
 		//frontend filter,filter on image only
 		add_filter('wp_get_attachment_url', array(__CLASS__, 'replace_baseurl'), -999);
+		add_filter('wp_calculate_image_srcset', array(__CLASS__, 'replace_image_srcset'));
 		add_action('wp_ajax_hacklogra_upyun_signature', array(__CLASS__, 'return_signature'));
 		add_action('media_buttons', array(__CLASS__, 'add_media_button'), 11);
 		add_action('plugin_action_links_' . plugin_basename(HACKLOG_RA_UPYUN_LOADER), array(__CLASS__,'add_plugin_actions'));
@@ -293,6 +296,7 @@ class hacklogra_upyun
 		self::$local_baseurl = $upload_dir['baseurl'];
 		self::$local_url = $upload_dir['url'];
 		self::$subdir = $upload_dir['subdir'];
+		self::$local_baseurl_schemed = set_url_scheme($upload_dir['baseurl']);
 		//if the post publish date was different from the media upload date,the time should take from the database.
 		if (get_option('uploads_use_yearmonth_folders') && isset($_REQUEST['post_id']))
 		{
@@ -783,8 +787,24 @@ if ( $id )
 	public static function replace_baseurl($url)
 	{
 		$url = str_replace(self::$local_baseurl, self::$remote_baseurl, $url);
-        !empty(self::$anti_leech_token) && !is_admin() && self::setup_rest() && $url = self::sign_url($url);
+		$url = str_replace(self::$local_baseurl_schemed, self::$remote_baseurl, $url);;
+		!empty(self::$anti_leech_token) && !is_admin() && self::setup_rest() && $url = self::sign_url($url);
 		return $url;
+	}
+
+	/**
+	 * the hook is in media.php
+	 * @static
+	 * @param $html
+	 * @return mixed
+	 */
+	public static function replace_image_srcset($sources)
+	{
+		$sources_key = array_keys($sources);
+		foreach ( $sources_key as &$key) {
+			$sources[$key]['url'] = self::replace_baseurl($sources[$key]['url']);
+		}
+		return $sources;
 	}
 
 	/**
